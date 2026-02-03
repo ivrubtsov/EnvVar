@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: production
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  PORT: "3000"
+  API_URL: "https://api.example.com"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "production_db"
+  ENABLE_ANALYTICS: "true"
+  ENABLE_METRICS: "true"
+  MAX_UPLOAD_SIZE: "10485760"
+  SESSION_MAX_AGE: "86400000"
+  AWS_REGION: "us-east-1"
+  S3_BUCKET_NAME: "production-uploads"
+  SENTRY_ENVIRONMENT: "production"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: production
+type: Opaque
+stringData:
+  DATABASE_PASSWORD: "${DATABASE_PASSWORD}"
+  DATABASE_URL: "${DATABASE_URL}"
+  JWT_SECRET: "${JWT_SECRET}"
+  SESSION_SECRET: "${SESSION_SECRET}"
+  SECRET_KEY: "${SECRET_KEY}"
+  REDIS_PASSWORD: "${REDIS_PASSWORD}"
+  STRIPE_API_KEY: "${STRIPE_API_KEY}"
+  STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET}"
+  AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+  AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+  SENDGRID_API_KEY: "${SENDGRID_API_KEY}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY}"
+  GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  WEATHER_API_KEY: "${WEATHER_API_KEY}"
+  GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+  GITHUB_CLIENT_SECRET: "${GITHUB_CLIENT_SECRET}"
+  SMTP_PASSWORD: "${SMTP_PASSWORD}"
+  SENTRY_DSN: "${SENTRY_DSN}"
+  DATADOG_API_KEY: "${DATADOG_API_KEY}"
+  DATADOG_APP_KEY: "${DATADOG_APP_KEY}"
+  TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN}"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: myapp/backend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PORT
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: DATABASE_URL
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: DATABASE_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: REDIS_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        - name: STRIPE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: STRIPE_API_KEY
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: OPENAI_API_KEY
+        envFrom:
+        - configMapRef:
+            name: app-config
+        - secretRef:
+            name: app-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
